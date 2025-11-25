@@ -112,6 +112,45 @@ pub const PE = struct {
         }
         return count;
     }
+    pub fn findExportRva(img: []const u8, name: []const u8) u32 {
+        const e_lfanew = readU32LE(img, 0x3C);
+        const coff = @as(usize, e_lfanew) + 4;
+        const opt_off = coff + 20;
+        const magic = readU16LE(img, opt_off + 0);
+        if (magic != 0x20B) return 0;
+        const dd_off = opt_off + 112;
+        const exp_rva = readU32LE(img, dd_off + 0);
+        const exp_size = readU32LE(img, dd_off + 4);
+        if (exp_rva == 0 or exp_size == 0) return 0;
+        const so = sectionsOffset(img);
+        const nsec = numberOfSections(img);
+        const base_off = rvaToFileOff(img, exp_rva, so, nsec) orelse return 0;
+        const names_rva = readU32LE(img, base_off + 32);
+        const ordinals_rva = readU32LE(img, base_off + 36);
+        const funcs_rva = readU32LE(img, base_off + 28);
+        const count = readU32LE(img, base_off + 24);
+        const names_off = rvaToFileOff(img, names_rva, so, nsec) orelse return 0;
+        const ord_off = rvaToFileOff(img, ordinals_rva, so, nsec) orelse return 0;
+        const func_off = rvaToFileOff(img, funcs_rva, so, nsec) orelse return 0;
+        var i: usize = 0;
+        while (i < count) : (i += 1) {
+            const nrva = readU32LE(img, names_off + i * 4);
+            const noff = rvaToFileOff(img, nrva, so, nsec) orelse continue;
+            const nm = readName(img, noff);
+            if (eqStr(nm, name)) {
+                const ord = readU16LE(img, ord_off + i * 2);
+                const frva = readU32LE(img, func_off + @as(usize, ord) * 4);
+                return frva;
+            }
+        }
+        return 0;
+    }
+    pub fn exportVa(img: []const u8, name: []const u8) u64 {
+        const rva = findExportRva(img, name);
+        if (rva == 0) return 0;
+        const base = imageBase(img);
+        return base + @as(u64, rva);
+    }
 };
 
 fn readU32LE(s: []const u8, o: usize) u32 {

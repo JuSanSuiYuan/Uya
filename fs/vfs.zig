@@ -26,6 +26,15 @@ pub const UyaFS = struct {
     var rt_alias_pending: i8 = -1;
     var rt_alias_pending_epoch: u32 = 0;
     var rt_alias_root: radix.Root = .{ .ptr = &rt_alias_nodes[0][0], .ver = 0 };
+    var rc_paths: [16][256]u8 = undefined;
+    var rc_lens: [16]usize = undefined;
+    var rc_data: [16]?[]const u8 = undefined;
+    var rc_idx: usize = 0;
+    var ac_in: [8][256]u8 = undefined;
+    var ac_in_len: [8]usize = undefined;
+    var ac_out: [8][256]u8 = undefined;
+    var ac_out_len: [8]usize = undefined;
+    var ac_idx: usize = 0;
 
     fn hash64(data: []const u8) u64 {
         var h: u64 = 1469598103934665603;
@@ -221,27 +230,55 @@ pub const UyaFS = struct {
         const cap_epoch = @import("cap_epoch");
         const tok = cap_epoch.enter();
         defer cap_epoch.exit(tok);
+        var i0: usize = 0;
+        while (i0 < rc_paths.len) : (i0 += 1) {
+            if (rc_data[i0] != null) {
+                const rp = rc_paths[i0][0..rc_lens[i0]];
+                if (sliceEq(path, rp)) return rc_data[i0].?;
+            }
+        }
         var norm: [256]u8 = undefined;
         const nlen_opt = normalize(path, norm[0..]);
         if (nlen_opt == null) return null;
         var nlen = nlen_opt.?;
         var res: [256]u8 = undefined;
-        if (resolveAlias(norm[0..nlen], &res, &nlen)) {
+        var iac: usize = 0; var hit_alias: bool = false;
+        while (iac < ac_in.len) : (iac += 1) {
+            if (ac_in_len[iac] != 0) {
+                const ip = ac_in[iac][0..ac_in_len[iac]];
+                if (sliceEq(norm[0..nlen], ip)) {
+                    var i2: usize = 0; while (i2 < ac_out_len[iac]) : (i2 += 1) norm[i2] = ac_out[iac][i2];
+                    nlen = ac_out_len[iac];
+                    hit_alias = true;
+                    break;
+                }
+            }
+        }
+        if (!hit_alias and resolveAlias(norm[0..nlen], &res, &nlen)) {
             var i: usize = 0;
             while (i < nlen) : (i += 1) norm[i] = res[i];
+            var j: usize = 0; while (j < nlen and j < 256) : (j += 1) ac_out[ac_idx][j] = res[j]; ac_out_len[ac_idx] = nlen;
+            var k: usize = 0; const inlen = nlen_opt.?; while (k < inlen and k < 256) : (k += 1) ac_in[ac_idx][k] = path[k]; ac_in_len[ac_idx] = inlen;
+            ac_idx = (ac_idx + 1) % ac_in.len;
         }
         if (isRevoked(norm[0..nlen])) return null;
         const key = hash64(norm[0..nlen]);
         if (radix.lookup(rt_root.ptr, key)) |idx| {
             const e = table[idx];
             const ep = e.path_buf[0..e.path_len];
-            if (sliceEq(norm[0..nlen], ep)) return e.data;
+            if (sliceEq(norm[0..nlen], ep)) {
+                var j: usize = 0; while (j < nlen) : (j += 1) rc_paths[rc_idx][j] = norm[j]; rc_lens[rc_idx] = nlen; rc_data[rc_idx] = e.data; rc_idx = (rc_idx + 1) % rc_paths.len;
+                return e.data;
+            }
         } else {
             var i: usize = 0;
             while (i < count) : (i += 1) {
                 const e = table[i];
                 const ep = e.path_buf[0..e.path_len];
-                if (sliceEq(norm[0..nlen], ep)) return e.data;
+                if (sliceEq(norm[0..nlen], ep)) {
+                    var j2: usize = 0; while (j2 < nlen) : (j2 += 1) rc_paths[rc_idx][j2] = norm[j2]; rc_lens[rc_idx] = nlen; rc_data[rc_idx] = e.data; rc_idx = (rc_idx + 1) % rc_paths.len;
+                    return e.data;
+                }
             }
         }
         return null;

@@ -7,6 +7,9 @@ const cfg = @import("components/config_loader.zig");
 const std = @import("std");
 const tray = @import("components/tray_init.zig");
 const dsl = @import("dsl/parser.zig");
+const browser_runner = @import("components/browser_runner.zig");
+const titlebar_layout = @import("components/titlebar_layout.zig");
+const titlebar_render = @import("components/titlebar_render.zig");
 const Wyhash = std.hash.Wyhash;
 
 fn readWorktreeFile(alloc: std.mem.Allocator, root: []const u8, prefix: []const u8, rel: []const u8) ?[]u8 {
@@ -92,6 +95,8 @@ pub fn main() void {
     } else |_| {}
     prefs.apply();
     var mgr = wm.Manager.init();
+    titlebar_render.render_with_size(screen_w, screen_h);
+    titlebar_render.render_ascii(80, 1);
     const screen_w: u32 = 1280;
     const screen_h: u32 = 800;
     var bar = taskbar.Taskbar.init(screen_w, screen_h, prefs.getBarOrientation());
@@ -138,6 +143,15 @@ pub fn main() void {
     const sb2 = start_btn.StartButton.init(screen_w, screen_h);
     _ = sb2;
     var ui_hash: u64 = 0;
+    // launch a simple browser fetch and save, then read content to verify
+    browser_runner.open_url_and_save("https://example.com/", 80, alloc);
+    const br_path = "registry/worktrees/org/uya/browser/demo/page.txt";
+    if (std.fs.cwd().readFileAlloc(br_path, alloc, @enumFromInt(1 << 20))) |br| {
+        // use hash to detect changes in saved browser content
+        const br_hash = Wyhash.hash(0, br);
+        _ = br_hash;
+        alloc.free(br);
+    } else |_| {}
     if (std.fs.cwd().readFileAlloc(ui_path, alloc, @enumFromInt(1 << 16))) |bufh| {
         ui_hash = Wyhash.hash(0, bufh);
         alloc.free(bufh);
@@ -217,3 +231,21 @@ pub fn main() void {
         } else |_| {}
     }
 }
+            if (dsl.findString(&doc, "titlebar", "layout")) |tb| {
+                titlebar_layout.apply(tb);
+            }
+            if (dsl.findStringArray(&doc, "titlebar", "controls.left")) |larr| {
+                titlebar_layout.set_left(alloc, larr);
+            }
+            if (dsl.findStringArray(&doc, "titlebar", "controls.right")) |rarr| {
+                titlebar_layout.set_right(alloc, rarr);
+            }
+            if (dsl.findString(&doc, "titlebar", "size")) |sz| {
+                const s = std.fmt.parseInt(usize, sz, 10) catch 24;
+                if (dsl.findString(&doc, "titlebar", "spacing")) |sp| {
+                    const spx = std.fmt.parseInt(usize, sp, 10) catch 8;
+                    @import("components/titlebar_calc.zig").set_metrics(s, spx);
+                } else {
+                    @import("components/titlebar_calc.zig").set_metrics(s, 8);
+                }
+            }
