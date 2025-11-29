@@ -190,8 +190,15 @@ Uya 是一个以 Zig 编写的实验性“内核 + 桌面环境”工程，目�
 - 你可以在满足许可证条款的前提下复制、使用、修改与分发本软件。
 - 许可证全文与指引：`http://license.coscl.org.cn/MulanPSL2`
 
-> THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE. See the Mulan PSL v2 for more details.
-
 ## 致谢
 - Limine 引导与文档
 - Zig 语言与生态
+- 分布式持久化（初步）
+  - 注册表写入生成复制日志：`/db/replica/log/<seq>`，顺序记录 `reg_set` 操作（TLV编码，含`key/value`与`db_kind`）
+  - 序列号存储：`/db/replica/seq`（LE编码），用于下次递增，见 `src/kernel/net/uyalink.zig:435-461`
+  - 审计镜像：驱动审计条目镜像到 `/db/driver_audit/<dev>/`，见 `src/kernel/driver/center.zig:18-33`
+  - 后续将以可插拔后端适配分布式数据库，实现事务与流订阅，并保持本地回退路径
+
+### DB 接口（新增）
+- `Family.db + Op.list`：分页列出 `/db/replica/log` 的条目名（支持 `offset/limit`），见 `src/kernel/net/uyalink.zig:...`
+- `Family.db + Op.get`：按 `db_seq` 读取日志条目内容（TLV编码数据），用于外部重放与校验，见 `src/kernel/net/uyalink.zig:...`

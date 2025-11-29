@@ -97,6 +97,29 @@ pub fn main() void {
     var mgr = wm.Manager.init();
     titlebar_render.render_with_size(screen_w, screen_h);
     titlebar_render.render_ascii(80, 1);
+    const alloc2 = std.heap.page_allocator;
+    const mp_gfx = std.fs.cwd().readFileAlloc("registry/metrics_gfx.txt", alloc2, @enumFromInt(1 << 16)) catch null;
+    const mp_gc = std.fs.cwd().readFileAlloc("registry/metrics_gc.txt", alloc2, @enumFromInt(1 << 16)) catch null;
+    const mp_drv = std.fs.cwd().readFileAlloc("registry/metrics_drv.txt", alloc2, @enumFromInt(1 << 16)) catch null;
+    if (mp_gfx) |g| { _ = std.io.getStdOut().writer().print("METRICS GFX\n{s}\n", .{g}); alloc2.free(g); }
+    if (mp_gc) |c| { _ = std.io.getStdOut().writer().print("METRICS GC\n{s}\n", .{c}); alloc2.free(c); }
+    if (mp_drv) |d| { _ = std.io.getStdOut().writer().print("METRICS DRV\n{s}\n", .{d}); alloc2.free(d); }
+    const kvlog = std.fs.cwd().readFileAlloc("db/registry/kv.log", alloc2, @enumFromInt(1 << 16)) catch null;
+    const wtlog = std.fs.cwd().readFileAlloc("db/registry/worktree.log", alloc2, @enumFromInt(1 << 16)) catch null;
+    const swlog = std.fs.cwd().readFileAlloc("db/registry/switch.log", alloc2, @enumFromInt(1 << 16)) catch null;
+    if (kvlog) |kvl| { _ = std.io.getStdOut().writer().print("DB REG KV\n{s}\n", .{kvl}); alloc2.free(kvl); }
+    if (wtlog) |wtl| { _ = std.io.getStdOut().writer().print("DB REG WT\n{s}\n", .{wtl}); alloc2.free(wtl); }
+    if (swlog) |swl| { _ = std.io.getStdOut().writer().print("DB REG SWITCH\n{s}\n", .{swl}); alloc2.free(swl); }
+    var count_audit: usize = 0;
+    if (std.fs.cwd().openDir("db/driver_audit/net0", .{ .iterate = true })) |dir| {
+        var it = dir.iterate();
+        while (true) {
+            const nxt = it.next() catch break;
+            if (nxt == null) break;
+            count_audit += 1;
+        }
+    } else |_| {}
+    _ = std.io.getStdOut().writer().print("DB AUDIT COUNT {d}\n", .{count_audit});
     const screen_w: u32 = 1280;
     const screen_h: u32 = 800;
     var bar = taskbar.Taskbar.init(screen_w, screen_h, prefs.getBarOrientation());

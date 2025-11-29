@@ -65,6 +65,11 @@ pub fn run() void {
             serial.writeStr(" BYTES ");
             serial.writeHexU64(bytes1);
             serial.writeStr("\r\n");
+            var gfxb: [64]u8 = undefined; var gi: usize = 0;
+            gfxb[gi] = 'R'; gi += 1; gfxb[gi] = ' '; gi += 1;
+            var r1: usize = rows1; var k: usize = 0; while (k < 8) : (k += 1) { gfxb[gi] = @as(u8, @intCast((r1 >> (k*8)) & 0xFF)); gi += 1; }
+            gfxb[gi] = ' '; gi += 1; var b1: usize = bytes1; var k2: usize = 0; while (k2 < 8) : (k2 += 1) { gfxb[gi] = @as(u8, @intCast((b1 >> (k2*8)) & 0xFF)); gi += 1; }
+            _ = vfs.UyaFS.addFile("/metrics/gfx/last", gfxb[0..gi]);
             comp.set_layer_opacity(lb, false);
             serial.writeStr("COMPOSE TRANSPARENT\r\n");
             comp.reset_metrics();
@@ -78,6 +83,11 @@ pub fn run() void {
             serial.writeStr(" BYTES ");
             serial.writeHexU64(bytes2);
             serial.writeStr("\r\n");
+            var gfxb2: [64]u8 = undefined; var gi2: usize = 0;
+            gfxb2[gi2] = 'R'; gi2 += 1; gfxb2[gi2] = ' '; gi2 += 1;
+            var r2: usize = rows2; var t: usize = 0; while (t < 8) : (t += 1) { gfxb2[gi2] = @as(u8, @intCast((r2 >> (t*8)) & 0xFF)); gi2 += 1; }
+            gfxb2[gi2] = ' '; gi2 += 1; var b2: usize = bytes2; var t2: usize = 0; while (t2 < 8) : (t2 += 1) { gfxb2[gi2] = @as(u8, @intCast((b2 >> (t2*8)) & 0xFF)); gi2 += 1; }
+            _ = vfs.UyaFS.addFile("/metrics/gfx/last2", gfxb2[0..gi2]);
             comp.remove_layer(la);
             comp.remove_layer(lb);
             comp.destroy_surface(a);
@@ -120,6 +130,11 @@ pub fn run() void {
     serial.writeStr("DIRTY "); serial.writeHexU64(dirty); serial.writeStr(" RETRIES "); serial.writeHexU64(retries); serial.writeStr("\r\n");
     serial.writeStr("CARD_SIZE "); serial.writeHexU64(csz); serial.writeStr(" NURSERY "); serial.writeHexU64(nsz); serial.writeStr(" COMPACT "); serial.writeHexU64(cth); serial.writeStr("\r\n");
     serial.writeStr("GEN_AVG "); serial.writeHexU64(gcapi.get_gen_avg()); serial.writeStr(" NURSERY "); serial.writeHexU64(gcapi.get_nursery_size()); serial.writeStr("\r\n");
+    var gcb: [64]u8 = undefined; var gi3: usize = 0;
+    gcb[gi3] = 'D'; gi3 += 1; gcb[gi3] = ' '; gi3 += 1;
+    var dd: usize = dirty; var a0: usize = 0; while (a0 < 8) : (a0 += 1) { gcb[gi3] = @as(u8, @intCast((dd >> (a0*8)) & 0xFF)); gi3 += 1; }
+    gcb[gi3] = ' '; gi3 += 1; var rr: usize = retries; var a1: usize = 0; while (a1 < 8) : (a1 += 1) { gcb[gi3] = @as(u8, @intCast((rr >> (a1*8)) & 0xFF)); gi3 += 1; }
+    _ = vfs.UyaFS.addFile("/metrics/gc/last", gcb[0..gi3]);
     serial.writeStr("LIST REMOVED "); serial.writeHexU64(removed); serial.writeStr("\r\n");
     serial.writeStr("GC MARKED "); serial.writeHexU64(mk); serial.writeStr("\r\n");
     serial.writeStr("PAUSE TICKS "); serial.writeHexU64(pause); serial.writeStr("\r\n");
@@ -139,4 +154,5 @@ pub fn run() void {
     var ents: [32]vfs.UyaFS.DirEntry = undefined;
     const ac = vfs.UyaFS.list("/audit/driver/net0", ents[0..]);
     serial.writeStr("AUDIT COUNT "); serial.writeHexU64(ac); serial.writeStr("\r\n");
+    var drvb: [32]u8 = undefined; var di: usize = 0; drvb[di] = if (ok_inst) '1' else '0'; di += 1; drvb[di] = if (ok_ver) '1' else '0'; di += 1; drvb[di] = if (ok_rb) '1' else '0'; di += 1; _ = vfs.UyaFS.addFile("/metrics/drv/last", drvb[0..di]);
 }

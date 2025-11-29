@@ -28,6 +28,11 @@ fn write_audit(dev: []const u8, action: []const u8, info: []const u8) void {
     const full = std.mem.concat(alloc, u8, &[_][]const u8{ dirp, "/", fname }) catch return;
     defer alloc.free(full);
     _ = vfs.UyaFS.addFile(full, info);
+    const dbdir = std.mem.concat(alloc, u8, &[_][]const u8{ "/db/driver_audit/", dev }) catch return;
+    defer alloc.free(dbdir);
+    const dbfull = std.mem.concat(alloc, u8, &[_][]const u8{ dbdir, "/", fname }) catch return;
+    defer alloc.free(dbfull);
+    _ = vfs.UyaFS.addFile(dbfull, info);
 }
 pub fn install(root: []const u8, dev: []const u8, version: []const u8) bool {
     work.ensure(@import("std").heap.page_allocator, root, dev, version) catch return false;
@@ -49,6 +54,7 @@ pub fn verify(dev: []const u8) bool {
     }
     return false;
 }
+pub fn audit(dev: []const u8, action: []const u8, info: []const u8) void { write_audit(dev, action, info); }
 pub fn rollback(root: []const u8, dev: []const u8, version: []const u8) bool {
     const res = work.switch_current(@import("std").heap.page_allocator, root, dev, version) catch false;
     if (res) write_audit(dev, "rollback", version);

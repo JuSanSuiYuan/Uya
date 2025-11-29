@@ -16,3 +16,6 @@ tray { icons = ["default", "net", "sound"] }
 layout { children = ["taskbar", "start", "tray", "clock"] }
 '@
 Set-Content "$root/worktrees/$prefix/$version/ui.dsl" $ui
+Set-Content "$root/metrics_gfx.txt" "rows bytes"
+Set-Content "$root/metrics_gc.txt" "dirty retries"
+Set-Content "$root/metrics_drv.txt" "install verify rollback"

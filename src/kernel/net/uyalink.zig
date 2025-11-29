@@ -71,9 +71,9 @@ fn find_attr(attrs: []const Attr, kind: u16) ?[]const u8 {
     return null;
 }
 
-pub const Family = enum(u16) { vfs = 1, registry = 2, process = 3, gc = 4, ai = 5, drv = 6 };
+pub const Family = enum(u16) { vfs = 1, registry = 2, process = 3, gc = 4, ai = 5, drv = 6, db = 7 };
 pub const Op = enum(u16) { get = 1, list = 2, set = 3, subscribe = 4, install = 5, verify = 6, rollback = 7 };
-pub const AttrKind = enum(u16) { path = 1, dir = 2, name = 3, is_dir = 4, key = 5, value = 6, errcode = 7, core_id = 8, tasks = 9, ticks = 10, offset = 11, limit = 12, gc_step = 13, gc_pause = 14, prompt = 15, lang = 16, code = 17, ai_model = 18, os_src = 19, dev_id = 20, src = 21, patched = 22, status = 23, version = 24, root = 25, log = 26 };
+pub const AttrKind = enum(u16) { path = 1, dir = 2, name = 3, is_dir = 4, key = 5, value = 6, errcode = 7, core_id = 8, tasks = 9, ticks = 10, offset = 11, limit = 12, gc_step = 13, gc_pause = 14, prompt = 15, lang = 16, code = 17, ai_model = 18, os_src = 19, dev_id = 20, src = 21, patched = 22, status = 23, version = 24, root = 25, log = 26, db_seq = 27, db_kind = 28 };
 pub const FLAG_MULTI: u32 = 1 << 8;
 pub const FLAG_DONE: u32 = 1 << 9;
 pub const FLAG_ACK: u32 = 1 << 10;
@@ -252,6 +252,67 @@ pub fn handle_once(ep: usize) bool {
             var done_empty2: [0]u8 = {};
             _ = events.endpoint_send_rsp_msg(ep, hdr.id, hdr.flags | FLAG_MULTI | FLAG_DONE, done_empty2[0..]);
             return true;
+        } else if (family == @intFromEnum(Family.db) and op == @intFromEnum(Op.list)) {
+            var dirbuf: [32]vfs.UyaFS.DirEntry = undefined;
+            const n = vfs.UyaFS.list("/db/replica/log", dirbuf[0..]);
+            var tlv_block: [512]u8 = undefined;
+            var pos: usize = 0;
+            var off: usize = 0;
+            var lim: usize = n;
+            if (find_attr(attrs, @intFromEnum(AttrKind.offset))) |ao| { if (ao.len >= 2) { off = @as(usize, ao[0]) | (@as(usize, ao[1]) << 8); } }
+            if (find_attr(attrs, @intFromEnum(AttrKind.limit))) |al| { if (al.len >= 2) { lim = @as(usize, al[0]) | (@as(usize, al[1]) << 8); } }
+            var i: usize = 0;
+            var emitted: usize = 0;
+            while (i < n and emitted < lim) : (i += 1) {
+                if (i < off) continue;
+                var nm_attr: Attr = .{ .kind = @intFromEnum(AttrKind.name), .val = dirbuf[i].name };
+                var next = append_attr(tlv_block[0..], pos, nm_attr);
+                if (next == pos) {
+                    var outb: [512]u8 = undefined;
+                    const m = encode_msg(hdr.id, hdr.flags | FLAG_MULTI, tlv_block[0..pos], outb[0..]);
+                    if (m != 0) _ = events.core_send(core, ch.ep, 1, outb[0..m]);
+                    pos = 0;
+                    next = append_attr(tlv_block[0..], pos, nm_attr);
+                }
+                pos = next;
+                if (pos + 8 > tlv_block.len) {
+                    var outb2: [512]u8 = undefined;
+                    const m2 = encode_msg(hdr.id, hdr.flags | FLAG_MULTI, tlv_block[0..pos], outb2[0..]);
+                    if (m2 != 0) _ = events.core_send(core, ch.ep, 1, outb2[0..m2]);
+                    pos = 0;
+                }
+                emitted += 1;
+            }
+            if (pos > 0) {
+                var outb3: [512]u8 = undefined;
+                const m3 = encode_msg(hdr.id, hdr.flags | FLAG_MULTI, tlv_block[0..pos], outb3[0..]);
+                if (m3 != 0) _ = events.core_send(core, ch.ep, 1, outb3[0..m3]);
+            }
+            var done_empty: [0]u8 = {};
+            var outb4: [64]u8 = undefined;
+            const m4 = encode_msg(hdr.id, hdr.flags | FLAG_MULTI | FLAG_DONE, done_empty[0..], outb4[0..]);
+            if (m4 != 0) _ = events.core_send(core, ch.ep, 1, outb4[0..m4]);
+            return true;
+        } else if (family == @intFromEnum(Family.db) and op == @intFromEnum(Op.get)) {
+            if (find_attr(attrs, @intFromEnum(AttrKind.db_seq))) |seqb| {
+                var seq: u16 = 0;
+                if (seqb.len >= 2) { seq = u16_from_le(seqb, 0); }
+                var pathbuf: [64]u8 = undefined; var plen: usize = 0;
+                const pre = "/db/replica/log/"; var pi: usize = 0; while (pi < pre.len) : (pi += 1) { pathbuf[plen] = pre[pi]; plen += 1; }
+                var digits: [6]u8 = undefined; var dn: usize = 0; var x: u16 = seq;
+                if (x == 0) { digits[dn] = '0'; dn += 1; }
+                else { var tmp: [6]u8 = undefined; var ti: usize = 0; while (x != 0 and ti < tmp.len) : (ti += 1) { const d: u16 = x % 10; tmp[ti] = @as(u8, '0') + @as(u8, @intCast(d)); x = x / 10; } while (ti > 0) : (ti -= 1) { digits[dn] = tmp[ti - 1]; dn += 1; } }
+                var ci: usize = 0; while (ci < dn and plen < pathbuf.len) : (ci += 1) { pathbuf[plen] = digits[ci]; plen += 1; }
+                const pth = pathbuf[0..plen];
+                if (vfs.UyaFS.read(pth)) |d| {
+                    var outb: [512]u8 = undefined;
+                    const m = encode_msg(hdr.id, hdr.flags | FLAG_ACK, d, outb[0..]);
+                    if (m != 0) _ = events.core_send(core, ch.ep, 1, outb[0..m]);
+                    return true;
+                }
+            }
+            var outb5: [64]u8 = undefined; var tlv: [16]u8 = undefined; const me = encode_err(tlv[0..], ERR_NOT_FOUND); const m5 = encode_msg(hdr.id, hdr.flags | FLAG_ACK, tlv[0..me], outb5[0..]); if (m5 != 0) _ = events.core_send(core, ch.ep, 1, outb5[0..m5]);
+            return false;
         } else if (family == @intFromEnum(Family.process) and op == @intFromEnum(Op.list)) {
             var outb: [256]u8 = undefined;
             var pos: usize = 0;
@@ -446,6 +507,40 @@ pub fn handle_core_once(core: usize) bool {
                 if (vfs.UyaFS.addFile(pp2, v.?)) {
                     const m4 = encode_msg(hdr.id, hdr.flags | FLAG_ACK, empty5[0..], outb4[0..]);
                     if (m4 != 0) _ = events.core_send(core, ch.ep, 1, outb4[0..m4]);
+                    var seq: u16 = 0;
+                    if (vfs.UyaFS.read("/db/replica/seq")) |sb| {
+                        if (sb.len >= 2) { seq = u16_from_le(sb, 0); }
+                    }
+                    seq = seq + 1;
+                    var seqb: [2]u8 = undefined;
+                    seqb[0] = @as(u8, @intCast(seq & 0xFF));
+                    seqb[1] = @as(u8, @intCast((seq >> 8) & 0xFF));
+                    _ = vfs.UyaFS.addFile("/db/replica/seq", seqb[0..]);
+                    var tlvrec: [256]u8 = undefined;
+                    var posr: usize = 0;
+                    const opk: []const u8 = "reg_set";
+                    posr = append_attr(tlvrec[0..], posr, .{ .kind = @intFromEnum(AttrKind.db_kind), .val = opk });
+                    posr = append_attr(tlvrec[0..], posr, .{ .kind = @intFromEnum(AttrKind.key), .val = k.? });
+                    posr = append_attr(tlvrec[0..], posr, .{ .kind = @intFromEnum(AttrKind.value), .val = v.? });
+                    var pathbuf3: [64]u8 = undefined;
+                    var pl3: usize = 0;
+                    const pre3 = "/db/replica/log/";
+                    var pi3: usize = 0; while (pi3 < pre3.len) : (pi3 += 1) { pathbuf3[pl3] = pre3[pi3]; pl3 += 1; }
+                    var digits: [6]u8 = undefined; var dn: usize = 0;
+                    var x: u16 = seq;
+                    if (x == 0) { digits[dn] = '0'; dn += 1; }
+                    else {
+                        var tmp: [6]u8 = undefined; var ti: usize = 0;
+                        while (x != 0 and ti < tmp.len) : (ti += 1) {
+                            const d: u16 = x % 10;
+                            tmp[ti] = @as(u8, '0') + @as(u8, @intCast(d));
+                            x = x / 10;
+                        }
+                        while (ti > 0) : (ti -= 1) { digits[dn] = tmp[ti - 1]; dn += 1; }
+                    }
+                    var ci3: usize = 0; while (ci3 < dn and pl3 < pathbuf3.len) : (ci3 += 1) { pathbuf3[pl3] = digits[ci3]; pl3 += 1; }
+                    const pth3 = pathbuf3[0..pl3];
+                    _ = vfs.UyaFS.addFile(pth3, tlvrec[0..posr]);
                     return true;
                 } else {
                     var tlv: [16]u8 = undefined;
@@ -613,6 +708,19 @@ pub fn handle_core_once(core: usize) bool {
                 if (attrs[a3].kind == @intFromEnum(AttrKind.os_src)) osrc = attrs[a3].val;
                 if (attrs[a3].kind == @intFromEnum(AttrKind.src)) ssrc = attrs[a3].val;
             }
+            var allow_set: bool = true;
+            if (@import("fs_vfs").UyaFS.read("/reg/security/drv_allow_port")) |vp| {
+                allow_set = !(vp.len >= 5 and vp[0] == 'f' and vp[1] == 'a');
+            }
+            if (!allow_set) {
+                var bufp_den: [128]u8 = undefined; var posd: usize = 0;
+                var sd: [1]u8 = [_]u8{0}; posd = append_attr(bufp_den[0..], posd, .{ .kind = @intFromEnum(AttrKind.status), .val = sd[0..] });
+                var ed: [1]u8 = [_]u8{ ERR_DENIED }; posd = append_attr(bufp_den[0..], posd, .{ .kind = @intFromEnum(AttrKind.errcode), .val = ed[0..] });
+                const lden: []const u8 = "denied"; posd = append_attr(bufp_den[0..], posd, .{ .kind = @intFromEnum(AttrKind.log), .val = lden });
+                var out_den: [256]u8 = undefined; const md = encode_msg(hdr.id, hdr.flags | FLAG_ACK, bufp_den[0..posd], out_den[0..]); if (md != 0) _ = events.core_send(core, ch.ep, 1, out_den[0..md]);
+                @import("driver_center").audit(dev, "set", "denied");
+                return false;
+            }
             const outc = @import("driver_center").port(dev, osrc, ssrc);
             var bufp: [512]u8 = undefined;
             var attrp: Attr = .{ .kind = @intFromEnum(AttrKind.patched), .val = outc };
@@ -620,6 +728,7 @@ pub fn handle_core_once(core: usize) bool {
             var outb6: [512]u8 = undefined;
             const m6 = encode_msg(hdr.id, hdr.flags | FLAG_ACK, bufp[0..enp], outb6[0..]);
             if (m6 != 0) _ = events.core_send(core, ch.ep, 1, outb6[0..m6]);
+            @import("driver_center").audit(dev, "set", "ok");
             return true;
         } else if (family == @intFromEnum(Family.drv) and op == @intFromEnum(Op.install)) {
             var dev: []const u8 = "dev";
@@ -691,6 +800,19 @@ pub fn handle_core_once(core: usize) bool {
             while (i1 < attrs.len) : (i1 += 1) {
                 if (attrs[i1].kind == @intFromEnum(AttrKind.dev_id)) dev = attrs[i1].val;
             }
+            var allow_vf: bool = true;
+            if (@import("fs_vfs").UyaFS.read("/reg/security/drv_allow_verify")) |vv| {
+                allow_vf = !(vv.len >= 5 and vv[0] == 'f' and vv[1] == 'a');
+            }
+            if (!allow_vf) {
+                var tlv: [64]u8 = undefined; var pos: usize = 0;
+                var sb: [1]u8 = [_]u8{0}; pos = append_attr(tlv[0..], pos, .{ .kind = @intFromEnum(AttrKind.status), .val = sb[0..] });
+                var eb: [1]u8 = [_]u8{ ERR_DENIED }; pos = append_attr(tlv[0..], pos, .{ .kind = @intFromEnum(AttrKind.errcode), .val = eb[0..] });
+                const ltxt: []const u8 = "denied"; pos = append_attr(tlv[0..], pos, .{ .kind = @intFromEnum(AttrKind.log), .val = ltxt });
+                var outb: [128]u8 = undefined; const m = encode_msg(hdr.id, hdr.flags | FLAG_ACK, tlv[0..pos], outb[0..]); if (m != 0) _ = events.core_send(core, ch.ep, 1, outb[0..m]);
+                @import("driver_center").audit(dev, "verify", "denied");
+                return false;
+            }
             const ok = @import("driver_center").verify(dev);
             var tlv: [128]u8 = undefined;
             var pos: usize = 0;
@@ -703,6 +825,7 @@ pub fn handle_core_once(core: usize) bool {
             var outb8: [256]u8 = undefined;
             const m8 = encode_msg(hdr.id, hdr.flags | FLAG_ACK, tlv[0..pos], outb8[0..]);
             if (m8 != 0) _ = events.core_send(core, ch.ep, 1, outb8[0..m8]);
+            @import("driver_center").audit(dev, "verify", if (ok) "ok" else "fail");
             return ok;
         }
         }
