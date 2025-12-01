@@ -1,0 +1,11 @@
+{
+  "titlebar": {
+    "layout": "hybrid",
+    "search_bar": true,
+    "controls": {
+      "left": ["close", "min", "max"],
+      "right": ["min", "max", "close"]
+    },
+    "size": "32"
+  }
+}

@@ -263,6 +263,33 @@ pub fn main() void {
             if (dsl.findStringArray(&doc, "titlebar", "controls.right")) |rarr| {
                 titlebar_layout.set_right(alloc, rarr);
             }
+            if (dsl.findBool(&doc, "titlebar", "search_bar")) |has_search| {
+                titlebar_layout.set_search_bar(has_search);
+            }
+            
+            // 配置Material3主题（如果存在）
+            if (dsl.hasChild("titlebar.theme")) {
+                // 输出主题配置信息（用于测试）
+                std.debug.print("\n=== Material3 主题配置 ===\n", .{});
+                
+                // 检查并输出主要颜色
+                if (dsl.findStr("titlebar.theme.primary", null)) |primary_color| {
+                    std.debug.print("主色调: {s}\n", .{primary_color});
+                }
+                if (dsl.findStr("titlebar.theme.secondary", null)) |secondary_color| {
+                    std.debug.print("辅助色（粉红色）: {s}\n", .{secondary_color});
+                }
+                if (dsl.findStr("titlebar.theme.tertiary", null)) |tertiary_color| {
+                    std.debug.print("第三色（天蓝色）: {s}\n", .{tertiary_color});
+                }
+                if (dsl.findStr("titlebar.theme.success", null)) |success_color| {
+                    std.debug.print("成功色（淡绿色）: {s}\n", .{success_color});
+                }
+                std.debug.print("==========================\n", .{});
+                
+                // 这里可以添加实际的主题应用逻辑
+                // 例如：theme_manager.applyMaterial3Theme(dsl.getChild("titlebar.theme"));
+            }
             if (dsl.findString(&doc, "titlebar", "size")) |sz| {
                 const s = std.fmt.parseInt(usize, sz, 10) catch 24;
                 if (dsl.findString(&doc, "titlebar", "spacing")) |sp| {

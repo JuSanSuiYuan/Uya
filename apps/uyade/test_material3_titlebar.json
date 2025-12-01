@@ -1,0 +1,45 @@
+{
+    "titlebar": {
+        "layout": "hybrid",
+        "search_bar": true,
+        "left_controls": ["close", "min", "max"],
+        "right_controls": [],
+        "button_size": 32,
+        "theme": {
+            "primary": "#1976D2",
+            "secondary": "#FF4081",
+            "tertiary": "#03A9F4",
+            "success": "#4CAF50",
+            "background": "#F5F5F5",
+            "surface": "#FFFFFF",
+            "error": "#F44336",
+            "onPrimary": "#FFFFFF",
+            "onSecondary": "#FFFFFF",
+            "onTertiary": "#FFFFFF",
+            "onBackground": "#212121",
+            "onSurface": "#212121",
+            "onError": "#FFFFFF",
+            "elevation": {
+                "level0": "#FFFFFF",
+                "level1": "#F5F5F5",
+                "level2": "#EEEEEE",
+                "level3": "#E0E0E0"
+            },
+            "shape": {
+                "cornerSize": {
+                    "small": 4,
+                    "medium": 8,
+                    "large": 16
+                }
+            },
+            "typography": {
+                "fontFamily": "Roboto",
+                "fontWeight": {
+                    "regular": 400,
+                    "medium": 500,
+                    "bold": 700
+                }
+            }
+        }
+    }
+}
