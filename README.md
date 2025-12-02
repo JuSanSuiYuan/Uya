@@ -12,6 +12,7 @@ Uya 是一个以 Zig 编写的实验性“内核 + 桌面环境”工程，目�
 - `fs/`：内置 `UyaFS`、FAT32 示例、ISO stub
 - `apps/uyade/`：桌面环境原型与组件
 - `apps/registry/`：注册表 CLI/服务与工作树实现
+- `apps/winboat-zig/`：WinBoat-Zig Windows 应用容器化运行工具（Zig 重写版）
 - `scripts/`：构建、打包 ISO、运行 QEMU 的脚本
 - `limine/`：`limine.cfg`
 - `third_party/limine/`：Limine 运行时二进制（需准备）
@@ -125,10 +126,15 @@ Uya 是一个以 Zig 编写的实验性“内核 + 桌面环境”工程，目�
 - 与 UyaDE 的联动
   - UyaDE 会从注册表工作树读取 `ui.dsl` 与主题数据并热重载布局，见 `apps/uyade/main.zig:145-218`
 
-## 桌面环境（UyaDE）
+# 桌面环境（UyaDE）
 - 入口：`apps/uyade/main.zig:30`
-- 特性：任务栏、开始按钮、托盘、时钟；支持从“注册表工作树”与 `ui.dsl` 动态热重载主题与布局
+- 特性：任务栏、开始按钮、托盘、时钟；支持从"注册表工作树"与 `ui.dsl` 动态热重载主题与布局
 - 启动：`zig build` 后运行 `zig-out\bin\uyade.exe`
+- 设计风格：
+  - 遵循 **Material 3** 设计规范
+  - 主色系：**莫兰迪色系**（高级灰调、低饱和度、柔和雾面质感）用于界面主要区域
+  - 点缀色系：**马卡龙色系**（高明度、柔和糖果色）用于图标、按钮等小面积装饰
+  - 整体呈现温柔优雅的现代感
 - `ui.dsl` 示例：
   ```
   [theme]
@@ -144,17 +150,42 @@ Uya 是一个以 Zig 编写的实验性“内核 + 桌面环境”工程，目�
   children = ["taskbar", "start", "tray", "clock"]
   ```
 
-### 标题栏特色（新增）
+### 标题栏特色
 - Uya 默认同时提供左右六个按键：
   - 左侧（苹果风格）：`close min max`，默认值见 `apps/uyade/components/titlebar_layout.zig:9-10`
   - 右侧（微软风格）：`max min close`，默认值见同文件
+- 集成搜索栏：
+  - 位于标题栏中央或可配置位置
+  - 支持全局应用搜索、文件快速定位
+  - 实时搜索建议与智能补全
+  - 采用马卡龙色系点缀，与整体设计风格协调
+  - 快捷键支持快速唤起（如 Ctrl+Space）
 - 可通过 UI DSL 配置：
   - `titlebar { layout = "apple" }`
   - `titlebar { controls.left = ["close","min","max"] }`
   - `titlebar { controls.right = ["max","min","close"] }`
+  - `titlebar { search.enabled = true }`
+  - `titlebar { search.position = "center" }`
   - 演示脚本示例：`scripts/setup_uyade_demo.ps1:10-11`
 
-## 基准与度量（新增）
+## WinBoat-Zig（新增）
+- 位置：`apps/winboat-zig/`
+- 说明：将 WinBoat（Windows 应用容器化运行工具）使用 Zig 重写并深度集成到 Uya 系统
+- 核心功能：
+  - 容器管理：支持 QEMU/KVM、Docker、Podman 等运行时
+  - Guest Server：系统监控（CPU/内存/磁盘）、健康检查、RDP 连接状态
+  - 应用管理：Windows 应用列表同步、自定义应用支持、使用统计
+  - RDP 集成：RemoteApp 协议、多显示器支持、窗口无缝集成
+  - QMP 通信：QEMU Machine Protocol 虚拟机控制
+- 系统集成：
+  - 与 UyaDE 深度集成，采用莫兰迪主色系和马卡龙点缀色
+  - 窗口管理集成 UyaDE 标题栏系统
+  - 文件系统共享与剪贴板同步
+  - 使用 Uya 的 IPC/Socket 机制和注册表配置管理
+- 构建：`cd apps/winboat-zig && zig build`
+- 许可证：木兰宽松许可证 2.0 (MulanPSL-2.0)
+
+## 基准与度量
 - 驱动闭环演示与审计计数输出：`src/kernel/tests/bench.zig:128-139`
 - 合成器度量（行数/字节）与脏区/遮挡裁剪演示：`src/kernel/tests/bench.zig:55-79`
 - VFS 热路径读压测与分页：`src/kernel/tests/bench.zig:12-25`，配合 `src/fs/vfs.zig`
