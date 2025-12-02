@@ -1065,14 +1065,43 @@ pub fn route_driver_request(req: Request) !void {
 ### B. 依赖关系图
 
 ```
-uya-kernel
-├── mm (内存管理)
-│   ├── core.zig
-│   └── phys.zig
-├── fs (文件系统)
-│   ├── vfs.zig
-│   ├── fat32.zig
-│   └── iso9660_stub.zig
+Uya项目目录结构
+├── kernel/ (内核核心目录)
+│   ├── src/ (内核源代码)
+│   │   ├── core/ (核心功能)
+│   │   ├── cap/ (能力化)
+│   │   ├── event/ (事件/IPC)
+│   │   ├── gc/ (垃圾回收)
+│   │   ├── abi/ (跨人格)
+│   │   ├── win/ (Windows 支持)
+│   │   ├── driver/ (驱动)
+│   │   └── plugin/ (AI 插件)
+│   ├── fs/ (文件系统)
+│   │   ├── vfs.zig
+│   │   ├── fat32.zig
+│   │   └── iso9660_stub.zig
+│   └── mm/ (内存管理)
+│       ├── core.zig
+│       └── phys.zig
+├── src/ (源代码目录)
+│   ├── apps/ (应用程序)
+│   ├── tools/ (工具程序)
+│   ├── config/ (配置文件)
+│   └── common/ (共享代码)
+├── apps/ (用户空间应用)
+└── third_party/ (第三方库管理)
+    ├── bootloaders/ (引导加载器)
+    ├── libraries/ (第三方库)
+    └── tools/ (第三方工具)
+```
+
+```
+kernel/src/核心模块依赖
+├── util (工具)
+│   ├── mpmc.zig
+│   ├── seqlock.zig
+│   ├── ringbuf.zig
+│   └── radix/tree.zig
 ├── cap (能力化)
 │   ├── types.zig
 │   ├── cap_api.zig
@@ -1086,11 +1115,6 @@ uya-kernel
 │   ├── mark.zig
 │   ├── card.zig
 │   └── sched.zig
-├── util (工具)
-│   ├── mpmc.zig
-│   ├── seqlock.zig
-│   ├── ringbuf.zig
-│   └── radix/tree.zig
 ├── abi (跨人格)
 │   ├── persona.zig
 │   ├── linux.zig

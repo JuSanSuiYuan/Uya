@@ -1,119 +1,153 @@
-# Uya 优雅系统
+# Uya 项目
 
-Uya 是一个以 Zig 编写的实验性“内核 + 桌面环境”工程，目标是在可控的现代架构上探索：能力化（Capabilities）、无锁并发结构、侵入式链表、多核消息队列，以及跨人格（Win/Linux/BSD）最小系统调用桥接。
+## 项目概述
+Uya 是一个基于 Zig 语言开发的操作系统项目，专注于提供高性能、可移植的系统架构。本项目探索现代操作系统设计理念，包括事件驱动模型、灵活的文件系统抽象、驱动管理以及用户空间应用生态。
 
-- 许可证：Mulan PSL v2（木兰宽松许可证，第2版）
-- 支持平台：x86_64（内核），Windows（主机侧工具/桌面原型）
-- 引导方式：Limine BIOS El Torito（默认）
+### 许可证
+本项目采用木兰宽松许可证 2.0 (MulanPSL-2.0)。
+
+### 支持平台
+- Windows（开发环境与部分功能）
+- UEFI/BIOS 启动（ISO 构建支持）
 
 ## 目录结构
-- `src/`：内核源码（Zig）
-- `mm/`：内存管理（映射/保护/缺页索引）
-- `fs/`：内置 `UyaFS`、FAT32 示例、ISO stub
-- `apps/uyade/`：桌面环境原型与组件
-- `apps/registry/`：注册表 CLI/服务与工作树实现
-- `apps/winboat-zig/`：WinBoat-Zig Windows 应用容器化运行工具（Zig 重写版）
-- `scripts/`：构建、打包 ISO、运行 QEMU 的脚本
-- `limine/`：`limine.cfg`
-- `third_party/limine/`：Limine 运行时二进制（需准备）
+- `kernel/` - 内核核心目录
+  - `src/` - 内核源代码
+  - `fs/` - 文件系统实现
+  - `mm/` - 内存管理
+- `src/` - 源代码目录
+  - `apps/` - 应用程序
+  - `tools/` - 工具程序
+  - `config/` - 配置文件
+  - `common/` - 共享代码
+- `apps/` - 用户空间应用
+- `third_party/` - 第三方库管理
+  - `bootloaders/` - 引导加载器
+    - `limine/` - Limine引导加载器
+    - `limine_codeberg/` - Limine源代码
+  - `libraries/` - 第三方库
+  - `tools/` - 第三方工具
+- `build.zig` - Zig构建文件
+- `iso/` - ISO相关文件
 
-## 快速开始（Windows 11）
-1. 安装依赖：`Zig`、`QEMU`；ISO 生成工具优先 `xorriso`，也可 `genisoimage/mkisofs` 或通过 `WSL` 调用 `xorriso`
-2. 准备 Limine 二进制：将 `limine-bios-cd.bin` 复制为 `third_party/limine/limine-cd.bin`，并放置 `third_party/limine/limine-bios.sys`（或 `limine.sys`）
-3. 构建与运行：
-   - `zig build`
-   - `scripts\make_iso.ps1`
-   - `scripts\qemu.ps1`
+## 快速开始
 
-说明：脚本会在 ISO 根复制 `uya-kernel`、`limine-cd.bin`、`limine.cfg` 并打包为 `dist\uya.iso`，随后用 QEMU 以 `-serial stdio` 启动。
+### Windows 环境
+```powershell
+# 克隆仓库
+git clone https://github.com/yourusername/uya.git
+cd uya
 
-## 快速开始（Linux / WSL）
-- 安装：`sudo apt install -y xorriso qemu-system-x86`
-- 构建：`zig build`
-- 打包：
-  ```
-  mkdir -p dist/iso_root
-  cp zig-out/bin/uya-kernel dist/iso_root/uya-kernel
-  cp third_party/limine/limine-cd.bin dist/iso_root/limine-cd.bin
-  cp limine/limine.cfg dist/iso_root/limine.cfg
-  xorriso -as mkisofs -b limine-cd.bin -no-emul-boot -boot-load-size 4 -boot-info-table \
-    -J -R -input-charset utf-8 -output-charset utf-8 \
-    -o dist/uya.iso dist/iso_root
-  ```
-- 运行：`qemu-system-x86_64 -m 512M -serial stdio -no-reboot -boot d -cdrom dist/uya.iso`
+# 安装依赖
+# 确保已安装 Zig 编译器和构建工具链
+
+# 构建项目
+zig build
+
+# 运行 ISO 构建（自动调用 iso_builder）
+zig build iso
+```
+
+### Linux 环境
+```bash
+# 克隆仓库
+git clone https://github.com/yourusername/uya.git
+cd uya
+
+# 安装依赖
+sudo apt-get install xorriso # 或 genisoimage/mkisofs
+
+# 构建项目
+zig build
+
+# 运行 ISO 构建
+zig build iso
+```
+
+## ISO 构建器（新增）
+
+### 功能概述
+Uya 项目包含一个强大的 ISO 构建器，位于 `src/build/iso_builder.zig`，用于自动创建可启动的 ISO 镜像。
+
+### 支持的 ISO 工具
+ISO 构建器会自动检测并使用系统中可用的 ISO 工具，按以下优先级：
+1. `xorriso` - 首选工具，功能最完整
+2. `genisoimage` - 备选工具
+3. `mkisofs` - 备选工具
+
+### 构建过程
+1. 自动创建 `dist/iso_root` 目录结构
+2. 复制必要文件（内核、Limine 引导文件、字体等）
+3. 生成可启动的 ISO 镜像
+
+### 自定义 ISO 构建
+```bash
+# 仅构建 ISO（不重建内核）
+zig build iso
+
+# 完整构建（包括内核和 ISO）
+zig build
+```
+
+### 常见问题
+- **工具不可用**：如果系统中没有安装上述工具，ISO 构建会失败。请根据您的操作系统安装相应工具。
+- **UEFI 支持**：当前 ISO 默认支持 BIOS 启动，UEFI 支持需要额外配置。
 
 ## 内核启动流程
-- 入口：`src/kernel/main.zig:28` `_start` 完成串口、SMP、APIC、ACPI、内存映射、VFS、事件队列、调度与人格桥接的初始化，并进入主循环
-- 构建入口：`build.zig:113` 安装内核可执行 `uya-kernel` 并设置链接脚本与符号入口
-- 引导配置：`limine/limine.cfg:1-5` 使用 BIOS El Torito 启动 `uya-kernel`
+1. `_start` 入口点初始化基本系统服务
+2. 初始化内存管理、中断处理和调度器
+3. 挂载虚拟文件系统（VFS）
+4. 初始化驱动中心和事件系统
+5. 启动用户空间应用
 
 ## 关键特性
-- 能力化与 Epoch 回收
-  - 能力序列化/校验：`src/kernel/cap/cap_api.zig:21-28,46-47`
-  - Epoch：`src/kernel/cap/epoch.zig:10-36`，与索引发布-复用结合，保障并发安全
-- VFS（UyaFS）
-  - 文件/目录索引的双缓冲发布：`fs/vfs.zig:58-142`
-  - 能力化打开与子树撤销：`fs/vfs.zig:279-309,329-339`
-- 事件与队列
-  - SPSC/共享内存队列/每核队列/MPMC 全局队列：`src/kernel/event/events.zig:9-16,20-23,30-60,106-115,123-125`
-  - MPMC 细节与 Epoch 回收：`src/kernel/util/mpmc.zig:34-52,74-101,102-121`
-- 内存管理
-  - 映射/保护/解除与缺页处理（radix + Epoch）：`mm/core.zig:48-57,59-74,76-89,91-107`
-- 跨人格最小桥接
-  - 调度器：`src/kernel/abi/persona.zig:6-12`
-  - Win/Linux/BSD 子系统调用：`src/kernel/win/syscall.zig:4-16`、`src/kernel/abi/linux.zig:49-56`、`src/kernel/abi/bsd.zig:49-56`
-- PE 装载与 IAT 解析：`src/kernel/win/pe.zig:58-85,233-248,263-314`
 
-## 驱动中心与安全（新增）
-- 自动移植与生成：`src/kernel/net/uyalink.zig:606-623` 路由到驱动中心生成移植稿（多个AI插件参与）。
-- 安装/校验/回滚：
-  - 安装分支：`src/kernel/net/uyalink.zig:624`（`Family.drv + Op.install`），驱动中心安装：`src/kernel/driver/center.zig:15-24`
-  - 校验分支：`src/kernel/net/uyalink.zig:647`（`Family.drv + Op.verify`），驱动中心校验：`src/kernel/driver/center.zig:25-32`
-  - 回滚分支：`src/kernel/net/uyalink.zig:668-682`（`Family.drv + Op.rollback`），驱动中心回滚：`src/kernel/driver/center.zig:33-38`
-- 安全策略检查：
-  - 安装策略：`/reg/security/drv_allow_install` 为 `false` 时拒绝，见 `src/kernel/net/uyalink.zig:636-644`
-  - 回滚策略：`/reg/security/drv_allow_rollback` 为 `false` 时拒绝，见 `src/kernel/net/uyalink.zig:659-667`
-- 审计记录：驱动中心在安装/校验/回滚时写入 `/audit/driver/<dev>/`，见 `src/kernel/driver/center.zig:18-33`
+### 能力化与特权管理
+- 能力模型：`src/kernel/mm/capability.zig`
+- 特权检查：针对所有敏感操作（如 `mm_alloc`，`src/mm/core.zig:20-30`）
+- 权限传递：在对象创建/引用时自动传递权限向量，见 `src/mm/core.zig:126-135`
 
-## GC 分代度量（新增）
-- 对象头加入代龄 `gen`：`src/kernel/gc/api.zig:5`
-- 周期收尾 `end_cycle()`：将存活对象升代并清标记，`src/kernel/gc/api.zig:99`
-- 调度集成：每轮步进后调用收尾，`src/kernel/gc/sched.zig:4`
-- 运行时参数与观测：`set_nursery_size/get_nursery_size/get_gen_avg`，`src/kernel/gc/api.zig:116-118`
-- bench 输出：`GEN_AVG/NURSERY`，`src/kernel/tests/bench.zig:120-122`
+### VFS（虚拟文件系统）
+- 统一命名空间：`vfs://` 前缀，支持分层挂载
+- 挂载点管理：`src/fs/vfs.zig:35-42`（注册）、`src/fs/vfs.zig:44-52`（查找）
+- 权限检查：挂载时验证权限，`src/fs/vfs.zig:48`
 
-## IPC 与套接字（新增）
-- 双向端点与消息头
-  - 创建端点：`src/kernel/event/events.zig:182-194`
-  - 请求/响应（消息头 `id/flags/len/err/deadline_ms`）：
-    - 发送请求：`src/kernel/event/events.zig:306-316`
-    - 接收请求：`src/kernel/event/events.zig:318-357`
-    - 发送响应：`src/kernel/event/events.zig:359-369`
-    - 接收响应：`src/kernel/event/events.zig:371-410`
-  - 批量收发：`src/kernel/event/events.zig:246-256,258-268`
-  - 设置当前时间（用于 deadline）：`src/kernel/event/events.zig:154-155`
-- 本地套接字封装
-  - 成对创建：`src/kernel/net/socket.zig:6-11`
-  - 监听/接受/连接/注销：`src/kernel/net/socket.zig:46-58,72-81,83-92,94-103`
-  - 发送/接收：`src/kernel/net/socket.zig:13-19,21-33`
-  - 批量与消息头：`src/kernel/net/socket.zig:118-124,126-132`
-  - 扩展发送与重试：`src/kernel/net/socket.zig:134-145,147-151,153-159`
+### 事件队列与消息传递
+- 核心 API：`send`/`recv`/`poll`，见 `src/kernel/event/events.zig:117-123`
+- 优先级队列：支持高/中/低三级优先级
+- 每核绑定：减少跨核迁移，提高性能
 
-## 优先级与超时（新增）
+### 驱动中心与安全（新增）
+- 安全驱动架构：`src/kernel/driver/center.zig`，通过能力校验驱动操作，支持审计日志
+- 审计计数：跟踪驱动 API 使用，见 `src/kernel/driver/center.zig:18-33`
+- 驱动闭环演示与度量：`src/kernel/tests/bench.zig:128-139`
+
+### 并发 GC 与策略节拍（新增）
+- 并发垃圾收集器：`src/kernel/gc/collector.zig`
+- 可配置回收策略：`src/kernel/gc/policy.zig`，支持基于时间/内存/手动触发
+- 分代度量：跟踪对象年龄与引用，`src/kernel/gc/collector.zig:28-43`
+- 插件化策略支持：`gc_policy_*.zig` 系列插件，见 `src/kernel/main.zig:182-193`
+
+### IPC 与套接字（新增）
+- 具名套接字：`src/kernel/net/socket.zig`，支持 `bind/listen/accept/connect`
+- 消息路由：基于名称的端点解析，`src/kernel/net/socket.zig:182-196`
+- 扩展发送与重试：`src/kernel/net/socket.zig:134-145,147-151,153-159`
+
+### 优先级与超时（新增）
 - 三级优先队列：高/中/低，`flags & 3` 选择优先级；接收按高→中→低消费
 - 超时回退：高/中队列的过期消息自动回退至低队列，低队列最佳努力交付
 - 配额与令牌（流控）：
   - 为端点设置配额：`src/kernel/net/socket.zig:105-114`（路由名 → 端点），调用 `events.set_ep_quota`
   - 回压查询：`events.get_ep_backpressure`（同文件，端点层）
 
-## 每核绑定（新增）
+### 每核绑定（新增）
 - 核心收发 API：
   - 发送到指定核心：`src/kernel/event/events.zig:159-167`
   - 从指定核心接收：`src/kernel/event/events.zig:169-180`
 - 套接字核心绑定：`src/kernel/net/socket.zig:116`，绑定后 `send/recv` 走每核队列，减少跨核迁移
 - 具名监听绑定核心：`src/kernel/net/socket.zig:60-70`，`accept/connect` 返回时保留核心信息
 
-## 注册表（新增）
+### 注册表（新增）
 - 目标与结构
   - 内容寻址存储（CAS）：对象按 `algo/hash.blob` 存储，避免重复写入，见 `apps/registry/cas.zig:15-37`
   - 工作树（Worktree）：`registry/worktrees/<prefix>/<version>` 版本化布局，支持硬链接优先与回退复制，见 `apps/registry/worktree_win.zig:23-53`
@@ -192,7 +226,7 @@ Uya 是一个以 Zig 编写的实验性“内核 + 桌面环境”工程，目�
 
 ## 与 Zorin OS 18 对比（实用性）
 - 应用生态与驱动覆盖：Zorin 基于 Ubuntu，生态成熟；Uya 侧重内核/IPC/驱动移植框架与研究，生态待扩充。
-- 桌面体验：Zorin 完整桌面栈与主题；UyaDE 可配置与“标题栏左右六键”特色，功能以原型为主。
+- 桌面体验：Zorin 完整桌面栈与主题；UyaDE 可配置与"标题栏左右六键"特色，功能以原型为主。
 - 性能与系统路径：Uya 具备轻量 IPC、并发 GC 与策略节拍、合成器脏区优化，适合定制化与高性能场景；Zorin 侧重稳定与广泛兼容。
 - 安全与维护：Zorin 提供成熟的更新与安全机制；Uya 已接入安装/回滚策略与审计，版本工作树与回滚已可用，差分更新与图形/驱动覆盖在推进中。
 

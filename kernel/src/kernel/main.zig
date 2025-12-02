@@ -24,6 +24,9 @@ const persona = @import("abi_persona");
 const cap_epoch = @import("cap_epoch");
 const io_blk = @import("io_blk");
 const drv_ramdisk = @import("drv_ramdisk");
+const drv_manager = @import("drv_manager");
+const drv_graphics = @import("drv_graphics");
+const drv_input = @import("drv_input");
 const uyl = @import("uyalink");
 
 pub export fn _start(st: *st2.Struct) noreturn {
@@ -83,6 +86,12 @@ pub export fn _start(st: *st2.Struct) noreturn {
     io_blk.init();
     const rd = drv_ramdisk.init();
     _ = rd;
+    
+    // 初始化驱动管理器
+    _ = drv_manager.init();
+    serial.writeStr("Driver manager initialized\r\n");
+    serial.writeStr(drv_manager.getStatus());
+    serial.writeStr("\r\n");
     const sched = @import("sched.zig");
     sched.init(@as(usize, smp.get_count()));
     const net = @import("net/stack.zig");
